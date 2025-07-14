@@ -1,0 +1,34 @@
+[
+  {
+    "status": "success",
+    "timestamp": "2025-07-14 15:24:00",
+    "data": [
+      {
+        "NUIP": "1102877148",
+        "DEPARTAMENTO": "SUCRE",
+        "MUNICIPIO": "COROZAL",
+        "PUESTO": "DON ALONSO",
+        "DIRECCIÓN": "I.E DON ALONSO",
+        "MESA": "3"
+      }
+    ],
+    "total_records": 1,
+    "nuip": "1102877148"
+  },
+  {
+    "status": "success",
+    "timestamp": "2025-07-14 15:24:17",
+    "data": [
+      {
+        "NUIP": "92532261",
+        "DEPARTAMENTO": "SUCRE",
+        "MUNICIPIO": "COROZAL",
+        "PUESTO": "DON ALONSO",
+        "DIRECCIÓN": "I.E DON ALONSO",
+        "MESA": "2"
+      }
+    ],
+    "total_records": 1,
+    "nuip": "92532261"
+  }
+]
