@@ -1,0 +1,79 @@
+from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
+
+class ScrapingResponse(BaseModel):
+    status: str
+    message: Optional[str] = None
+    nuip: Optional[str] = None
+    data: Optional[List[Dict[str, Any]]] = None
+    total_records: Optional[int] = None
+    timestamp: str
+    response_time_seconds: Optional[float] = None
+    execution_time: Optional[str] = None
+
+class PoliceNameResponse(BaseModel):
+    status: str
+    message: Optional[str] = None
+    nuip: Optional[str] = None
+    fecha_expedicion: Optional[str] = None
+    name: Optional[str] = None
+    timestamp: str
+    response_time_seconds: Optional[float] = None
+    execution_time: Optional[str] = None
+
+class MultiplePoliceNameResponse(BaseModel):
+    status: str
+    total_processed: int
+    results: List[Dict[str, Any]]
+    file_saved: str
+    timestamp: str
+    response_time_seconds: Optional[float] = None
+    execution_time: Optional[str] = None
+    successful_queries: Optional[int] = None
+    failed_queries: Optional[int] = None
+
+class JobStatus(BaseModel):
+    job_id: str
+    status: str  # "pending", "running", "completed", "failed"
+    progress: Optional[Dict[str, Any]] = None
+    result: Optional[Any] = None
+    created_at: str
+    completed_at: Optional[str] = None
+    response_time_seconds: Optional[float] = None
+    execution_time: Optional[str] = None
+
+class HealthResponse(BaseModel):
+    status: str
+    timestamp: str
+    api_key_configured: bool
+    response_time_seconds: Optional[float] = None
+    execution_time: Optional[str] = None
+
+class BalanceResponse(BaseModel):
+    balance: float
+    response_time_seconds: Optional[float] = None
+    execution_time: Optional[str] = None
+
+class MultipleScrapingResponse(BaseModel):
+    status: str
+    total_processed: int
+    results: List[Dict[str, Any]]
+    file_saved: str
+    timestamp: str
+    response_time_seconds: Optional[float] = None
+    execution_time: Optional[str] = None
+
+class AsyncJobResponse(BaseModel):
+    job_id: str
+    status: str
+    message: str
+    check_status_url: str
+    response_time_seconds: Optional[float] = None
+    execution_time: Optional[str] = None
+
+class ErrorResponse(BaseModel):
+    error: str
+    detail: Optional[str] = None
+    timestamp: str
+    response_time_seconds: Optional[float] = None
+    execution_time: Optional[str] = None
