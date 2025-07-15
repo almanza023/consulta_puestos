@@ -77,3 +77,27 @@ class ErrorResponse(BaseModel):
     timestamp: str
     response_time_seconds: Optional[float] = None
     execution_time: Optional[str] = None
+
+class CombinedResponse(BaseModel):
+    """Respuesta para consulta combinada individual"""
+    status: str
+    message: Optional[str] = None
+    nuip: Optional[str] = None
+    fecha_expedicion: Optional[str] = None
+    registraduria_result: Optional[Dict[str, Any]] = None
+    police_result: Optional[Dict[str, Any]] = None
+    timestamp: str
+    response_time_seconds: Optional[float] = None
+    execution_time: Optional[str] = None
+
+class MultipleCombinedResponse(BaseModel):
+    """Respuesta para múltiples consultas combinadas"""
+    status: str
+    total_processed: int
+    results: List[CombinedResponse]
+    file_saved: Optional[str] = None
+    timestamp: str
+    response_time_seconds: Optional[float] = None
+    execution_time: Optional[str] = None
+    successful_queries: Optional[int] = None
+    failed_queries: Optional[int] = None

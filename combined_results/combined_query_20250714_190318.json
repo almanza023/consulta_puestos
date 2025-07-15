@@ -1,0 +1,33 @@
+{
+  "status": "success",
+  "nuip": "1102877148",
+  "fecha_expedicion": "27/02/2015",
+  "registraduria_result": {
+    "status": "success",
+    "timestamp": "2025-07-14T19:02:49.739753",
+    "data": [
+      {
+        "NUIP": "1102877148",
+        "DEPARTAMENTO": "SUCRE",
+        "MUNICIPIO": "COROZAL",
+        "PUESTO": "DON ALONSO",
+        "DIRECCIÓN": "I.E DON ALONSO",
+        "MESA": "3"
+      }
+    ],
+    "total_records": 1,
+    "nuip": "1102877148"
+  },
+  "police_result": {
+    "status": "success",
+    "message": "Nombre encontrado exitosamente",
+    "nuip": "1102877148",
+    "fecha_expedicion": "27/02/2015",
+    "name": "EDUARDO ANTONIO ALMANZA PEREZ",
+    "timestamp": "2025-07-14 19:03:18",
+    "execution_time_seconds": 26.51
+  },
+  "timestamp": "2025-07-14T19:02:32.507495",
+  "response_time_seconds": 45.74,
+  "execution_time": "45743ms"
+}

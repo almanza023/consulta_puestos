@@ -24,6 +24,10 @@ from models import (
     BalanceResponse,
     MultipleScrapingResponse,
     AsyncJobResponse,
+    CombinedResponse,
+    CombinedQuery,
+    MultipleCombinedRequest,
+    MultipleCombinedResponse,
     ErrorResponse
 )
 
@@ -34,6 +38,7 @@ from utils.time_utils import format_execution_time, calculate_response_time, get
 from config import settings
 from registraduria_scraper import RegistraduriaScraperAuto, save_registraduria_results
 from police_scraper import PoliciaScraperAuto, save_police_results 
+from combined_scraper import CombinedScraper, save_combined_results
 
 # Crear la aplicación FastAPI
 app = FastAPI(
@@ -74,6 +79,9 @@ async def root():
             "police_name_query": "/scrape/police-name",
             "police_multiple_query": "/scrape/police-multiple",
             "police_async_multiple": "/scrape/police-async-multiple",
+            "combined_query": "/scrape/combined",  # NUEVO
+            "combined_multiple_query": "/scrape/combined-multiple",  # NUEVO
+            "combined_async_multiple": "/scrape/combined-async-multiple",  # NUEVO
             "job_status": "/jobs/{job_id}",
             "jobs_list": "/jobs",
             "health": "/health",
@@ -489,6 +497,246 @@ async def process_multiple_nuips_background(job_id: str, nuips: List[str], delay
         jobs_storage[job_id].completed_at = get_current_timestamp()
         jobs_storage[job_id].response_time_seconds = response_time_seconds
         jobs_storage[job_id].execution_time = execution_time
+@app.post("/scrape/combined", response_model=CombinedResponse)
+async def scrape_combined_data(request: CombinedQuery):
+    """
+    Consulta combinada: Registraduría + Policía Nacional en una sola petición
+    """
+    start_time = time.time()
+    
+    try:
+        combined_scraper = CombinedScraper(API_KEY, headless=True)
+        
+        try:
+            result = combined_scraper.scrape_combined_data(
+                request.nuip, 
+                request.fecha_expedicion
+            )
+            
+            response_time_seconds, execution_time = calculate_response_time(start_time)
+            
+            # Guardar resultado si fue exitoso
+            if result.get("status") in ["success", "partial_success"]:
+                save_combined_results(result)
+            
+            return CombinedResponse(
+                status=result.get("status", "unknown"),
+                nuip=result.get("nuip"),
+                fecha_expedicion=result.get("fecha_expedicion"),
+                registraduria_result=result.get("registraduria_result"),
+                police_result=result.get("police_result"),
+                timestamp=result.get("timestamp", get_current_timestamp()),
+                response_time_seconds=response_time_seconds,
+                execution_time=execution_time
+            )
+            
+        finally:
+            combined_scraper.close()
+            
+    except Exception as e:
+        response_time_seconds, execution_time = calculate_response_time(start_time)
+        
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Error al procesar la consulta combinada: {str(e)}",
+                "response_time_seconds": response_time_seconds,
+                "execution_time": execution_time
+            }
+        )
+
+@app.post("/scrape/combined-multiple", response_model=MultipleCombinedResponse)
+async def scrape_multiple_combined_data(request: MultipleCombinedRequest):
+    """
+    Múltiples consultas combinadas: Registraduría + Policía Nacional
+    """
+    start_time = time.time()
+    
+    try:
+        if len(request.queries) > 20:
+            raise HTTPException(
+                status_code=400,
+                detail="Máximo 20 consultas por request. Use el endpoint async para consultas más grandes."
+            )
+        
+        combined_scraper = CombinedScraper(API_KEY, headless=True)
+        
+        try:
+            # Convertir queries a formato esperado
+            queries_list = [
+                {"nuip": q.nuip, "fecha_expedicion": q.fecha_expedicion} 
+                for q in request.queries
+            ]
+            
+            results = combined_scraper.scrape_multiple_combined(
+                queries_list, 
+                request.delay
+            )
+            
+            # Contar resultados exitosos y fallidos
+            successful_count = len([r for r in results if r.get("status") in ["success", "partial_success"]])
+            failed_count = len(results) - successful_count
+            
+            # Guardar todos los resultados
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"combined_multiple_{timestamp}.json"
+            save_combined_results(results, filename)
+            
+            response_time_seconds, execution_time = calculate_response_time(start_time)
+            
+            return MultipleCombinedResponse(
+                status="completed",
+                total_processed=len(results),
+                results=[
+                    CombinedResponse(
+                        status=r.get("status", "unknown"),
+                        nuip=r.get("nuip"),
+                        fecha_expedicion=r.get("fecha_expedicion"),
+                        registraduria_result=r.get("registraduria_result"),
+                        police_result=r.get("police_result"),
+                        timestamp=r.get("timestamp", get_current_timestamp()),
+                        response_time_seconds=r.get("response_time_seconds", 0.0),
+                        execution_time=r.get("execution_time", "0ms")
+                    ) for r in results
+                ],
+                file_saved=filename,
+                timestamp=get_current_timestamp(),
+                response_time_seconds=response_time_seconds,
+                execution_time=execution_time,
+                successful_queries=successful_count,
+                failed_queries=failed_count
+            )
+            
+        finally:
+            combined_scraper.close()
+            
+    except Exception as e:
+        response_time_seconds, execution_time = calculate_response_time(start_time)
+        
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Error al procesar las consultas combinadas: {str(e)}",
+                "response_time_seconds": response_time_seconds,
+                "execution_time": execution_time
+            }
+        )
+
+@app.post("/scrape/combined-async-multiple", response_model=AsyncJobResponse)
+async def scrape_multiple_combined_data_async(request: MultipleCombinedRequest, background_tasks: BackgroundTasks):
+    """
+    Múltiples consultas combinadas de forma asíncrona
+    """
+    start_time = time.time()
+    
+    job_id = str(uuid.uuid4())
+    
+    job_status = JobStatus(
+        job_id=job_id,
+        status="pending",
+        progress={"total": len(request.queries), "completed": 0},
+        created_at=get_current_timestamp()
+    )
+    
+    jobs_storage[job_id] = job_status
+    
+    background_tasks.add_task(
+        process_multiple_combined_background,
+        job_id,
+        request.queries,
+        request.delay,
+        start_time
+    )
+    
+    response_time_seconds, execution_time = calculate_response_time(start_time)
+    
+    return AsyncJobResponse(
+        job_id=job_id,
+        status="accepted",
+        message=f"Procesando {len(request.queries)} consultas combinadas en segundo plano",
+        check_status_url=f"/jobs/{job_id}",
+        response_time_seconds=response_time_seconds,
+        execution_time=execution_time
+    )
+
+async def process_multiple_combined_background(job_id: str, queries: List[CombinedQuery], delay: int, start_time: float):
+    """Función para procesar consultas combinadas en segundo plano"""
+    try:
+        jobs_storage[job_id].status = "running"
+        
+        combined_scraper = CombinedScraper(API_KEY, headless=True)
+        
+        try:
+            results = []
+            total = len(queries)
+            successful_count = 0
+            failed_count = 0
+            
+            # Convertir queries a formato esperado
+            queries_list = [
+                {"nuip": q.nuip, "fecha_expedicion": q.fecha_expedicion} 
+                for q in queries
+            ]
+            
+            for i, query_dict in enumerate(queries_list):
+                print(f"Procesando consulta combinada {i+1}/{total}: NUIP {query_dict['nuip']}")
+                
+                result = combined_scraper.scrape_combined_data(
+                    query_dict["nuip"], 
+                    query_dict["fecha_expedicion"]
+                )
+                results.append(result)
+                
+                # Contar resultados exitosos y fallidos
+                if result.get("status") in ["success", "partial_success"]:
+                    successful_count += 1
+                else:
+                    failed_count += 1
+                
+                # Actualizar progreso
+                jobs_storage[job_id].progress = {
+                    "total": total,
+                    "completed": i + 1,
+                    "current_query": f"NUIP: {query_dict['nuip']}, Fecha: {query_dict['fecha_expedicion']}",
+                    "successful": successful_count,
+                    "failed": failed_count
+                }
+                
+                # Delay entre consultas si no es la última
+                if i < total - 1:
+                    await asyncio.sleep(delay)
+            
+            # Guardar todos los resultados
+            filename = f"combined_results/async_combined_results_{job_id}.json"
+            save_combined_results(results, filename)
+            
+            response_time_seconds, execution_time = calculate_response_time(start_time)
+            
+            jobs_storage[job_id].status = "completed"
+            jobs_storage[job_id].result = {
+                "total_processed": len(results),
+                "results": results,
+                "file_saved": filename,
+                "successful_queries": successful_count,
+                "failed_queries": failed_count
+            }
+            jobs_storage[job_id].completed_at = get_current_timestamp()
+            jobs_storage[job_id].response_time_seconds = response_time_seconds
+            jobs_storage[job_id].execution_time = execution_time
+            
+        finally:
+            combined_scraper.close()
+            
+    except Exception as e:
+        response_time_seconds, execution_time = calculate_response_time(start_time)
+        
+        jobs_storage[job_id].status = "failed"
+        jobs_storage[job_id].result = {"error": str(e)}
+        jobs_storage[job_id].completed_at = get_current_timestamp()
+        jobs_storage[job_id].response_time_seconds = response_time_seconds
+        jobs_storage[job_id].execution_time = execution_time
+        
+        print(f"❌ Error en procesamiento background combinado para job {job_id}: {e}")
 
 @app.get("/jobs/{job_id}")
 async def get_job_status(job_id: str):

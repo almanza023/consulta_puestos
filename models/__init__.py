@@ -3,7 +3,9 @@ from .requests import (
     MultipleNuipRequest, 
     PoliceNameRequest,
     PoliceQuery,
-    MultiplePoliceNameRequest
+    MultiplePoliceNameRequest,
+    CombinedQuery,
+    MultipleCombinedRequest
 )
 from .responses import (
     ScrapingResponse, 
@@ -13,6 +15,8 @@ from .responses import (
     HealthResponse, 
     BalanceResponse,
     MultipleScrapingResponse,
+    CombinedResponse,
+    MultipleCombinedResponse,
     AsyncJobResponse,
     ErrorResponse
 )
@@ -24,6 +28,8 @@ __all__ = [
     'PoliceNameRequest',
     'PoliceQuery',
     'MultiplePoliceNameRequest',
+    'CombinedQuery',
+    'MultipleCombinedRequest',
     
     # Response models
     'ScrapingResponse',
@@ -34,5 +40,7 @@ __all__ = [
     'BalanceResponse',
     'MultipleScrapingResponse',
     'AsyncJobResponse',
+    'CombinedResponse',
+    'MultipleCombinedResponse',
     'ErrorResponse'
 ]
