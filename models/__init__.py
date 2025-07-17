@@ -5,7 +5,10 @@ from .requests import (
     PoliceQuery,
     MultiplePoliceNameRequest,
     CombinedQuery,
-    MultipleCombinedRequest
+    MultipleCombinedRequest,
+    CertificadoVigenciaRequest,
+    MultipleCertificadoRequest
+    
 )
 from .responses import (
     ScrapingResponse, 
@@ -18,6 +21,8 @@ from .responses import (
     CombinedResponse,
     MultipleCombinedResponse,
     AsyncJobResponse,
+    CertificadoVigenciaResponse,
+    MultipleCertificadoResponse,
     ErrorResponse
 )
 
@@ -30,6 +35,9 @@ __all__ = [
     'MultiplePoliceNameRequest',
     'CombinedQuery',
     'MultipleCombinedRequest',
+    'CertificadoVigenciaRequest',
+    'MultipleCertificadoRequest',
+    
     
     # Response models
     'ScrapingResponse',
@@ -42,5 +50,7 @@ __all__ = [
     'AsyncJobResponse',
     'CombinedResponse',
     'MultipleCombinedResponse',
+    'CertificadoVigenciaResponse',
+    'MultipleCertificadoResponse',
     'ErrorResponse'
 ]

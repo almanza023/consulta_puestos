@@ -101,3 +101,36 @@ class MultipleCombinedResponse(BaseModel):
     execution_time: Optional[str] = None
     successful_queries: Optional[int] = None
     failed_queries: Optional[int] = None
+
+class CertificadoVigenciaResponse(BaseModel):
+    """Modelo para respuesta de certificado de vigencia"""
+    status: str
+    message: str
+    nuip: str
+    fecha_expedicion: str
+    pdf_file: Optional[str] = None
+    captcha_image: Optional[str] = None
+    captcha_text: Optional[str] = None
+    timestamp: str
+    response_time_seconds: float
+    execution_time: str
+    # Nuevos campos para los datos extraídos del PDF
+    cedula_ciudadania: Optional[str] = None
+    fecha_expedicion_pdf: Optional[str] = None
+    lugar_expedicion: Optional[str] = None
+    nombre: Optional[str] = None
+    estado: Optional[str] = None
+    pdf_data: Optional[Dict[str, Any]] = None
+
+class MultipleCertificadoResponse(BaseModel):
+    """Modelo para respuesta de múltiples certificados"""
+    status: str
+    total_processed: int
+    results: List[CertificadoVigenciaResponse]
+    file_saved: Optional[str] = None
+    timestamp: str
+    response_time_seconds: float
+    execution_time: str
+    successful_queries: int
+    failed_queries: int
+

@@ -28,10 +28,14 @@ from models import (
     CombinedQuery,
     MultipleCombinedRequest,
     MultipleCombinedResponse,
+    CertificadoVigenciaResponse,  
+    MultipleCertificadoRequest,  
+    MultipleCertificadoResponse,  
     ErrorResponse
 )
 
 # Importar utilidades
+from models.requests import CertificadoVigenciaRequest
 from utils.time_utils import format_execution_time, calculate_response_time, get_current_timestamp
 
 # Importar clases existentes
@@ -39,7 +43,8 @@ from config import settings
 from registraduria_scraper import RegistraduriaScraperAuto, save_registraduria_results
 from police_scraper import PoliciaScraperAuto, save_police_results 
 from combined_scraper import CombinedScraper, save_combined_results
-
+# Importar el scraper de certificados
+from certificado_scraper import CertificadoVigenciaScraperAuto, save_certificado_results
 # Crear la aplicación FastAPI
 app = FastAPI(
     title=settings.API_TITLE,
@@ -79,9 +84,12 @@ async def root():
             "police_name_query": "/scrape/police-name",
             "police_multiple_query": "/scrape/police-multiple",
             "police_async_multiple": "/scrape/police-async-multiple",
-            "combined_query": "/scrape/combined",  # NUEVO
-            "combined_multiple_query": "/scrape/combined-multiple",  # NUEVO
-            "combined_async_multiple": "/scrape/combined-async-multiple",  # NUEVO
+            "combined_query": "/scrape/combined",
+            "combined_multiple_query": "/scrape/combined-multiple",
+            "combined_async_multiple": "/scrape/combined-async-multiple",
+            "certificado_vigencia": "/scrape/certificado-vigencia",  # NUEVO
+            "certificado_multiple": "/scrape/certificado-multiple",  # NUEVO
+            "certificado_async_multiple": "/scrape/certificado-async-multiple",  # NUEVO
             "job_status": "/jobs/{job_id}",
             "jobs_list": "/jobs",
             "health": "/health",
@@ -377,6 +385,263 @@ async def scrape_multiple_nuips_async(request: MultipleNuipRequest, background_t
         execution_time=execution_time
     )
 
+@app.post("/scrape/certificado-vigencia", response_model=CertificadoVigenciaResponse)
+async def scrape_certificado_vigencia(request: CertificadoVigenciaRequest):
+    """
+    Obtiene el certificado de vigencia de cédula
+    """
+    start_time = time.time()
+    
+    try:
+        scraper = CertificadoVigenciaScraperAuto(headless=True)
+        
+        try:
+            result = scraper.scrape_certificado_vigencia(request.nuip, request.fecha_expedicion)
+            
+            response_time_seconds, execution_time = calculate_response_time(start_time)
+            
+            # Guardar resultado si fue exitoso
+            if result.get("status") == "success":
+                save_certificado_results(result)
+            
+            return CertificadoVigenciaResponse(
+                status=result.get("status", "unknown"),
+                message=result.get("message", ""),
+                nuip=result.get("nuip", request.nuip),
+                fecha_expedicion=result.get("fecha_expedicion", request.fecha_expedicion),
+                pdf_file=result.get("pdf_file"),
+                captcha_image=result.get("captcha_image"),
+                captcha_text=result.get("captcha_text"),
+                timestamp=result.get("timestamp", get_current_timestamp()),
+                response_time_seconds=response_time_seconds,
+                execution_time=execution_time,
+                # Nuevos campos con los datos extraídos del PDF
+                cedula_ciudadania=result.get("cedula_ciudadania"),
+                fecha_expedicion_pdf=result.get("fecha_expedicion_pdf"),
+                lugar_expedicion=result.get("lugar_expedicion"),
+                nombre=result.get("nombre"),
+                estado=result.get("estado"),
+                pdf_data=result.get("pdf_data")
+            )
+            
+        finally:
+            scraper.close()
+            
+    except Exception as e:
+        response_time_seconds, execution_time = calculate_response_time(start_time)
+        
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Error al obtener certificado de vigencia: {str(e)}",
+                "response_time_seconds": response_time_seconds,
+                "execution_time": execution_time
+            }
+        )
+
+@app.post("/scrape/certificado-multiple", response_model=MultipleCertificadoResponse)
+async def scrape_multiple_certificados(request: MultipleCertificadoRequest):
+    """
+    Obtiene múltiples certificados de vigencia de forma síncrona
+    """
+    start_time = time.time()
+    
+    try:
+        if len(request.queries) > 10:
+            raise HTTPException(
+                status_code=400,
+                detail="Máximo 10 consultas por request. Use el endpoint async para consultas más grandes."
+            )
+        
+        scraper = CertificadoVigenciaScraperAuto(headless=True)
+        
+        try:
+            # Convertir queries a formato esperado
+            queries_list = [
+                {"nuip": q.nuip, "fecha_expedicion": q.fecha_expedicion} 
+                for q in request.queries
+            ]
+            
+            results = scraper.scrape_multiple_certificados(queries_list, request.delay)
+            
+            # Contar resultados exitosos y fallidos
+            successful_count = len([r for r in results if r.get("status") == "success"])
+            failed_count = len(results) - successful_count
+            
+            # Guardar todos los resultados
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"certificado_multiple_{timestamp}.json"
+            save_certificado_results(results, filename)
+            
+            response_time_seconds, execution_time = calculate_response_time(start_time)
+            
+            # Convertir resultados al formato de respuesta
+            response_results = []
+            for r in results:
+                response_results.append(CertificadoVigenciaResponse(
+                    status=r.get("status", "unknown"),
+                    message=r.get("message", ""),
+                    nuip=r.get("nuip", ""),
+                    fecha_expedicion=r.get("fecha_expedicion", ""),
+                    pdf_file=r.get("pdf_file"),
+                    captcha_image=r.get("captcha_image"),
+                    captcha_text=r.get("captcha_text"),
+                    timestamp=r.get("timestamp", get_current_timestamp()),
+                    response_time_seconds=r.get("execution_time_seconds", 0.0),
+                    execution_time=f"{r.get('execution_time_seconds', 0.0)*1000:.0f}ms",
+                    # Nuevos campos con los datos extraídos del PDF
+                    cedula_ciudadania=r.get("cedula_ciudadania"),
+                    fecha_expedicion_pdf=r.get("fecha_expedicion_pdf"),
+                    lugar_expedicion=r.get("lugar_expedicion"),
+                    nombre=r.get("nombre"),
+                    estado=r.get("estado"),
+                    pdf_data=r.get("pdf_data")
+                ))
+            
+            return MultipleCertificadoResponse(
+                status="completed",
+                total_processed=len(results),
+                results=response_results,
+                file_saved=filename,
+                timestamp=get_current_timestamp(),
+                response_time_seconds=response_time_seconds,
+                execution_time=execution_time,
+                successful_queries=successful_count,
+                failed_queries=failed_count
+            )
+            
+        finally:
+            scraper.close()
+            
+    except Exception as e:
+        response_time_seconds, execution_time = calculate_response_time(start_time)
+        
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Error al procesar certificados múltiples: {str(e)}",
+                "response_time_seconds": response_time_seconds,
+                "execution_time": execution_time
+            }
+        )
+
+@app.post("/scrape/certificado-async-multiple", response_model=AsyncJobResponse)
+async def scrape_multiple_certificados_async(request: MultipleCertificadoRequest, background_tasks: BackgroundTasks):
+    """
+    Obtiene múltiples certificados de vigencia de forma asíncrona
+    """
+    start_time = time.time()
+    
+    job_id = str(uuid.uuid4())
+    
+    job_status = JobStatus(
+        job_id=job_id,
+        status="pending",
+        progress={"total": len(request.queries), "completed": 0},
+        created_at=get_current_timestamp()
+    )
+    
+    jobs_storage[job_id] = job_status
+    
+    background_tasks.add_task(
+        process_multiple_certificados_background,
+        job_id,
+        request.queries,
+        request.delay,
+        start_time
+    )
+    
+    response_time_seconds, execution_time = calculate_response_time(start_time)
+    
+    return AsyncJobResponse(
+        job_id=job_id,
+        status="accepted",
+        message=f"Procesando {len(request.queries)} certificados de vigencia en segundo plano",
+        check_status_url=f"/jobs/{job_id}",
+        response_time_seconds=response_time_seconds,
+        execution_time=execution_time
+    )
+
+async def process_multiple_certificados_background(job_id: str, queries: List[CertificadoVigenciaRequest], delay: int, start_time: float):
+    """Función para procesar certificados en segundo plano"""
+    try:
+        jobs_storage[job_id].status = "running"
+        
+        scraper = CertificadoVigenciaScraperAuto(headless=True)
+        
+        try:
+            results = []
+            total = len(queries)
+            successful_count = 0
+            failed_count = 0
+            
+            # Convertir queries a formato esperado
+            queries_list = [
+                {"nuip": q.nuip, "fecha_expedicion": q.fecha_expedicion} 
+                for q in queries
+            ]
+            
+            for i, query_dict in enumerate(queries_list):
+                print(f"Procesando certificado {i+1}/{total}: NUIP {query_dict['nuip']}")
+                
+                result = scraper.scrape_certificado_vigencia(
+                    query_dict["nuip"], 
+                    query_dict["fecha_expedicion"]
+                )
+                results.append(result)
+                
+                # Contar resultados exitosos y fallidos
+                if result.get("status") == "success":
+                    successful_count += 1
+                    save_certificado_results(result)
+                else:
+                    failed_count += 1
+                
+                # Actualizar progreso
+                jobs_storage[job_id].progress = {
+                    "total": total,
+                    "completed": i + 1,
+                    "current_query": f"NUIP: {query_dict['nuip']}, Fecha: {query_dict['fecha_expedicion']}",
+                    "successful": successful_count,
+                    "failed": failed_count
+                }
+                
+                # Delay entre consultas si no es la última
+                if i < total - 1:
+                    await asyncio.sleep(delay)
+            
+            # Guardar todos los resultados
+            filename = f"certificado_results/async_certificado_results_{job_id}.json"
+            save_certificado_results(results, filename)
+            
+            response_time_seconds, execution_time = calculate_response_time(start_time)
+            
+            jobs_storage[job_id].status = "completed"
+            jobs_storage[job_id].result = {
+                "total_processed": len(results),
+                "results": results,
+                "file_saved": filename,
+                "successful_queries": successful_count,
+                "failed_queries": failed_count
+            }
+            jobs_storage[job_id].completed_at = get_current_timestamp()
+            jobs_storage[job_id].response_time_seconds = response_time_seconds
+            jobs_storage[job_id].execution_time = execution_time
+            
+        finally:
+            scraper.close()
+            
+    except Exception as e:
+        response_time_seconds, execution_time = calculate_response_time(start_time)
+        
+        jobs_storage[job_id].status = "failed"
+        jobs_storage[job_id].result = {"error": str(e)}
+        jobs_storage[job_id].completed_at = get_current_timestamp()
+        jobs_storage[job_id].response_time_seconds = response_time_seconds
+        jobs_storage[job_id].execution_time = execution_time
+        
+        print(f"❌ Error en procesamiento background de certificados para job {job_id}: {e}")
+        
 async def process_multiple_police_names_background(job_id: str, queries: List[PoliceQuery], delay: int, start_time: float):
     """Función para procesar consultas de policía en segundo plano"""
     try:

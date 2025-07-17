@@ -95,3 +95,15 @@ class MultipleCombinedRequest(BaseModel):
         if len(v) > 100:
             raise ValueError('Máximo 100 consultas por request')
         return v
+# ... resto de imports y modelos existentes ...
+
+class CertificadoVigenciaRequest(BaseModel):
+    """Modelo para solicitud de certificado de vigencia"""
+    nuip: str = Field(..., description="Número único de identificación personal")
+    fecha_expedicion: str = Field(..., description="Fecha de expedición en formato dd/mm/yyyy")
+
+class MultipleCertificadoRequest(BaseModel):
+    """Modelo para múltiples solicitudes de certificados"""
+    queries: List[CertificadoVigenciaRequest]
+    delay: int = Field(default=10, description="Delay en segundos entre consultas")
+

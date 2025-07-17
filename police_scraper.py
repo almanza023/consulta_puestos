@@ -69,7 +69,7 @@ class PoliciaScraperAuto:
             self.driver.get(url)
             
             # Esperar a que la página cargue completamente
-            time.sleep(3)
+            time.sleep(2)
             
             # 1. Seleccionar tipo de documento (value 55)
             tipo_doc_dropdown = self.wait.until(
